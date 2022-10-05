@@ -81,6 +81,8 @@ cc_defaults {
     defaults: ["erofs-utils_export_defaults"],
 
     cflags: [
+        "-O3",
+        "-funroll-loops",
         "-include erofs-utils-version.h",
     ],
     local_include_dirs: [
@@ -98,6 +100,10 @@ cc_defaults {
         "liblz4",
         "libselinux",
     ],
+
+    lto: {
+        full: true,
+    },
 }
 
 cc_library {
