@@ -70,6 +70,8 @@ struct erofs_device_info {
 	u32 mapped_blkaddr;
 };
 
+#define EROFS_PACKED_NID_UNALLOCATED	-1
+
 struct erofs_sb_info {
 	struct erofs_device_info *devs;
 
@@ -92,6 +94,7 @@ struct erofs_sb_info {
 	u64 inos;
 
 	u8 uuid[16];
+	char volume_name[16];
 
 	u16 available_compr_algs;
 	u16 lz4_max_distance;
@@ -102,6 +105,7 @@ struct erofs_sb_info {
 		u16 devt_slotoff;		/* used for mkfs */
 		u16 device_id_mask;		/* used for others */
 	};
+	erofs_nid_t packed_nid;
 };
 
 /* global sbi */
@@ -132,6 +136,8 @@ EROFS_FEATURE_FUNCS(big_pcluster, incompat, INCOMPAT_BIG_PCLUSTER)
 EROFS_FEATURE_FUNCS(chunked_file, incompat, INCOMPAT_CHUNKED_FILE)
 EROFS_FEATURE_FUNCS(device_table, incompat, INCOMPAT_DEVICE_TABLE)
 EROFS_FEATURE_FUNCS(ztailpacking, incompat, INCOMPAT_ZTAILPACKING)
+EROFS_FEATURE_FUNCS(fragments, incompat, INCOMPAT_FRAGMENTS)
+EROFS_FEATURE_FUNCS(dedupe, incompat, INCOMPAT_DEDUPE)
 EROFS_FEATURE_FUNCS(sb_chksum, compat, COMPAT_SB_CHKSUM)
 
 #define EROFS_I_EA_INITED	(1 << 0)
@@ -180,6 +186,9 @@ struct erofs_inode {
 	unsigned int xattr_isize;
 	unsigned int extent_isize;
 
+	unsigned int xattr_shared_count;
+	unsigned int *xattr_shared_xattrs;
+
 	erofs_nid_t nid;
 	struct erofs_buffer_head *bh;
 	struct erofs_buffer_head *bh_inline, *bh_data;
@@ -206,6 +215,8 @@ struct erofs_inode {
 #ifdef WITH_ANDROID
 	uint64_t capabilities;
 #endif
+	erofs_off_t fragmentoff;
+	unsigned int fragment_size;
 };
 
 static inline bool is_inode_layout_compression(struct erofs_inode *inode)
@@ -276,6 +287,8 @@ enum {
 	BH_Mapped,
 	BH_Encoded,
 	BH_FullMapped,
+	BH_Fragment,
+	BH_Partialref,
 };
 
 /* Has a disk mapping */
@@ -286,6 +299,10 @@ enum {
 #define EROFS_MAP_ENCODED	(1 << BH_Encoded)
 /* The length of extent is full */
 #define EROFS_MAP_FULL_MAPPED	(1 << BH_FullMapped)
+/* Located in the special packed inode */
+#define EROFS_MAP_FRAGMENT	(1 << BH_Fragment)
+/* The extent refers to partial decompressed data */
+#define EROFS_MAP_PARTIAL_REF	(1 << BH_Partialref)
 
 struct erofs_map_blocks {
 	char mpage[EROFS_BLKSIZ];
@@ -304,10 +321,12 @@ struct erofs_map_blocks {
  * approach instead if possible since it's more metadata lightweight.)
  */
 #define EROFS_GET_BLOCKS_FIEMAP	0x0002
+/* Used to map tail extent for tailpacking inline or fragment pcluster */
 #define EROFS_GET_BLOCKS_FINDTAIL	0x0008
 
 enum {
 	Z_EROFS_COMPRESSION_SHIFTED = Z_EROFS_COMPRESSION_MAX,
+	Z_EROFS_COMPRESSION_INTERLACED,
 	Z_EROFS_COMPRESSION_RUNTIME_MAX
 };
 
@@ -318,6 +337,7 @@ struct erofs_map_dev {
 
 /* super.c */
 int erofs_read_superblock(void);
+void erofs_put_super(void);
 
 /* namei.c */
 int erofs_read_inode_from_disk(struct erofs_inode *vi);
@@ -350,6 +370,11 @@ static inline int erofs_get_occupied_size(const struct erofs_inode *inode,
 	}
 	return 0;
 }
+
+/* data.c */
+int erofs_getxattr(struct erofs_inode *vi, const char *name, char *buffer,
+		   size_t buffer_size);
+int erofs_listxattr(struct erofs_inode *vi, char *buffer, size_t buffer_size);
 
 /* zmap.c */
 int z_erofs_fill_inode(struct erofs_inode *vi);

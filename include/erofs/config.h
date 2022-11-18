@@ -44,6 +44,8 @@ struct erofs_configure {
 	char c_chunkbits;
 	bool c_noinline_data;
 	bool c_ztailpacking;
+	bool c_fragments;
+	bool c_dedupe;
 	bool c_ignore_mtime;
 	bool c_showprogress;
 
@@ -62,17 +64,21 @@ struct erofs_configure {
 	/* < 0, xattr disabled and INT_MAX, always use inline xattrs */
 	int c_inline_xattr_tolerance;
 
-	u32 c_pclusterblks_max, c_pclusterblks_def;
+	u32 c_pclusterblks_max, c_pclusterblks_def, c_pclusterblks_packed;
 	u32 c_max_decompressed_extent_bytes;
 	u32 c_dict_size;
 	u64 c_unix_timestamp;
 	u32 c_uid, c_gid;
+	const char *mount_point;
+	long long c_uid_offset, c_gid_offset;
 #ifdef WITH_ANDROID
-	char *mount_point;
 	char *target_out_path;
 	char *fs_config_file;
 	char *block_list_file;
 #endif
+
+	/* offset when reading multi partition images */
+	u64 c_offset;
 };
 
 extern struct erofs_configure cfg;

@@ -22,7 +22,7 @@ static int erofs_map_blocks_flatmode(struct erofs_inode *inode,
 
 	trace_erofs_map_blocks_flatmode_enter(inode, map, flags);
 
-	nblocks = DIV_ROUND_UP(inode->i_size, EROFS_BLKSIZ);
+	nblocks = BLK_ROUND_UP(inode->i_size);
 	lastblk = nblocks - tailendpacking;
 
 	/* there is no hole in flatmode */
@@ -226,7 +226,7 @@ static int z_erofs_read_data(struct erofs_inode *inode, char *buffer,
 	};
 	struct erofs_map_dev mdev;
 	bool partial;
-	unsigned int bufsize = 0;
+	unsigned int bufsize = 0, interlaced_offset;
 	char *raw = NULL;
 	int ret = 0;
 
@@ -258,7 +258,8 @@ static int z_erofs_read_data(struct erofs_inode *inode, char *buffer,
 		} else {
 			DBG_BUGON(end != map.m_la + map.m_llen);
 			length = map.m_llen;
-			partial = !(map.m_flags & EROFS_MAP_FULL_MAPPED);
+			partial = !(map.m_flags & EROFS_MAP_FULL_MAPPED) ||
+				(map.m_flags & EROFS_MAP_PARTIAL_REF);
 		}
 
 		if (map.m_la < offset) {
@@ -275,6 +276,25 @@ static int z_erofs_read_data(struct erofs_inode *inode, char *buffer,
 			continue;
 		}
 
+		if (map.m_flags & EROFS_MAP_FRAGMENT) {
+			struct erofs_inode packed_inode = {
+				.nid = sbi.packed_nid,
+			};
+
+			ret = erofs_read_inode_from_disk(&packed_inode);
+			if (ret) {
+				erofs_err("failed to read packed inode from disk");
+				return ret;
+			}
+
+			ret = z_erofs_read_data(&packed_inode,
+					buffer + end - offset, length - skip,
+					inode->fragmentoff + skip);
+			if (ret < 0)
+				break;
+			continue;
+		}
+
 		if (map.m_plen > bufsize) {
 			bufsize = map.m_plen;
 			raw = realloc(raw, bufsize);
@@ -287,10 +307,15 @@ static int z_erofs_read_data(struct erofs_inode *inode, char *buffer,
 		if (ret < 0)
 			break;
 
+		interlaced_offset = 0;
+		if (map.m_algorithmformat == Z_EROFS_COMPRESSION_INTERLACED)
+			interlaced_offset = erofs_blkoff(map.m_la);
+
 		ret = z_erofs_decompress(&(struct z_erofs_decompress_req) {
 					.in = raw,
 					.out = buffer + end - offset,
 					.decodedskip = skip,
+					.interlaced_offset = interlaced_offset,
 					.inputsize = map.m_plen,
 					.decodedlength = length,
 					.alg = map.m_algorithmformat,
