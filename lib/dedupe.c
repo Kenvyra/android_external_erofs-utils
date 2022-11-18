@@ -75,6 +75,11 @@ int z_erofs_dedupe_match(struct z_erofs_dedupe_ctx *ctx)
 			continue;
 
 		extra = 0;
+		while (cur + 2 * window_size + extra <= ctx->end &&
+		       2 * window_size + extra <= e->original_length &&
+			   !memcmp(e->extra_data + extra, cur + window_size + extra, window_size))
+			extra += window_size;
+
 		while (cur + window_size + extra < ctx->end &&
 		       window_size + extra < e->original_length &&
 		       e->extra_data[extra] == cur[window_size + extra])
