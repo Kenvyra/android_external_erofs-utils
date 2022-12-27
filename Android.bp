@@ -65,7 +65,6 @@ cc_defaults {
         "-DHAVE_FALLOCATE",
         "-DHAVE_LINUX_TYPES_H",
         "-DHAVE_LIBSELINUX",
-        "-DHAVE_LIBLZMA",
         "-DHAVE_LIBUUID",
         "-DLZ4_ENABLED",
         "-DLZ4HC_ENABLED",
@@ -99,7 +98,6 @@ cc_defaults {
         "libext2_uuid",
         "liblog",
         "liblz4",
-        "libmicrolzma",
         "libselinux",
     ],
 
