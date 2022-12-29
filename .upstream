@@ -1,0 +1,5 @@
+{
+    "name": "acme",
+    "fetch": "https://github.com/AcmeUI/android_external_erofs-utils",
+    "revision": "refs/heads/taffy"
+}
